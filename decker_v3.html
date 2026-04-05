@@ -1,0 +1,1221 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MATRIX — MCT DELTA SECTOR // UNAUTHORIZED ACCESS</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=VT323&family=Courier+Prime:wght@400;700&display=swap');
+
+:root {
+  --bg: #000200;
+  --bg2: #000500;
+  --cyan: #00ffe0;
+  --cyan2: #00ddaa;
+  --cyan-dim: #005544;
+  --green: #00ff55;
+  --green-dim: #004422;
+  --red: #ff1133;
+  --red-dim: #440011;
+  --orange: #ff9900;
+  --orange-dim: #442200;
+  --yellow: #ffee00;
+  --white: #ddfff5;
+  --dim: #1a4433;
+  --panel: #010a04;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  background: var(--bg);
+  color: var(--cyan);
+  font-family: 'Share Tech Mono', monospace;
+  height: 100vh;
+  overflow: hidden;
+  cursor: crosshair;
+}
+
+/* Scanlines overlay */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 3px,
+    rgba(0, 255, 200, 0.03) 3px,
+    rgba(0, 255, 200, 0.03) 4px
+  );
+  pointer-events: none;
+  z-index: 100;
+}
+
+/* CRT vignette */
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background: radial-gradient(ellipse at center, transparent 55%, rgba(0,0,0,0.85) 100%);
+  pointer-events: none;
+  z-index: 99;
+}
+
+/* ── HEADER ── */
+#header {
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  height: 48px;
+  background: rgba(0,10,6,0.95);
+  border-bottom: 1px solid var(--cyan-dim);
+  display: flex;
+  align-items: center;
+  padding: 0 20px;
+  gap: 24px;
+  z-index: 50;
+}
+
+#header .title {
+  font-family: 'VT323', monospace;
+  font-size: 1.4rem;
+  color: var(--red);
+  letter-spacing: 0.2em;
+  text-shadow: 0 0 10px var(--red), 0 0 20px rgba(255,34,68,0.5);
+  animation: flicker 4s infinite;
+}
+
+@keyframes flicker {
+  0%,95%,100% { opacity:1; }
+  96% { opacity:0.7; }
+  97% { opacity:1; }
+  98% { opacity:0.4; }
+  99% { opacity:1; }
+}
+
+#header .sep { color: var(--cyan-dim); }
+
+#header .stat {
+  font-size: 0.65rem;
+  color: var(--cyan2);
+  letter-spacing: 0.12em;
+}
+#header .stat .val { color: var(--cyan); }
+#header .stat .val.warn { color: var(--orange); animation: blink 0.8s infinite; }
+#header .stat .val.danger { color: var(--red); animation: blink 0.5s infinite; }
+
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.2} }
+
+#header .trace-bar {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.65rem;
+  color: var(--orange);
+}
+#trace-fill {
+  width: 120px;
+  height: 8px;
+  background: var(--red-dim);
+  border: 1px solid var(--red);
+  position: relative;
+  overflow: hidden;
+}
+#trace-inner {
+  height: 100%;
+  background: linear-gradient(90deg, var(--orange), var(--red));
+  width: 23%;
+  transition: width 0.3s;
+  box-shadow: 0 0 6px var(--red);
+}
+
+/* ── CANVAS ── */
+#net-canvas {
+  position: fixed;
+  top: 48px; left: 0; right: 380px; bottom: 0;
+}
+
+/* ── SIDE PANEL ── */
+#side-panel {
+  position: fixed;
+  top: 48px; right: 0; bottom: 0;
+  width: 380px;
+  background: var(--panel);
+  border-left: 1px solid var(--cyan-dim);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+#panel-header {
+  padding: 14px 18px 10px;
+  border-bottom: 1px solid var(--cyan-dim);
+  background: rgba(0,255,200,0.03);
+}
+#panel-node-id {
+  font-family: 'VT323', monospace;
+  font-size: 1.1rem;
+  color: var(--cyan);
+  letter-spacing: 0.2em;
+}
+#panel-node-name {
+  font-size: 0.75rem;
+  color: var(--green);
+  margin-top: 3px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+#panel-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 14px 18px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--cyan-dim) var(--panel);
+}
+
+.p-block {
+  margin-bottom: 16px;
+}
+.p-block h3 {
+  font-size: 0.58rem;
+  color: var(--cyan2);
+  letter-spacing: 0.25em;
+  text-transform: uppercase;
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--cyan-dim);
+  margin-bottom: 8px;
+}
+
+/* ICE list */
+.ice-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 10px;
+  margin-bottom: 5px;
+  border: 1px solid;
+  background: rgba(0,0,0,0.3);
+  position: relative;
+  overflow: hidden;
+}
+.ice-item::before {
+  content: '';
+  position: absolute;
+  left: 0; top: 0; bottom: 0;
+  width: 3px;
+}
+.ice-item.black { border-color: var(--red); }
+.ice-item.black::before { background: var(--red); box-shadow: 0 0 8px var(--red); }
+.ice-item.white { border-color: var(--cyan); }
+.ice-item.white::before { background: var(--cyan); box-shadow: 0 0 8px var(--cyan); }
+.ice-item.grey { border-color: var(--orange); }
+.ice-item.grey::before { background: var(--orange); box-shadow: 0 0 6px var(--orange); }
+
+.ice-icon {
+  font-family: 'VT323', monospace;
+  font-size: 1.3rem;
+  min-width: 24px;
+  text-align: center;
+}
+.ice-item.black .ice-icon { color: var(--red); text-shadow: 0 0 8px var(--red); }
+.ice-item.white .ice-icon { color: var(--cyan); text-shadow: 0 0 8px var(--cyan); }
+.ice-item.grey .ice-icon { color: var(--orange); }
+
+.ice-info { flex: 1; }
+.ice-name {
+  font-size: 0.72rem;
+  font-weight: bold;
+  letter-spacing: 0.08em;
+}
+.ice-item.black .ice-name { color: var(--red); }
+.ice-item.white .ice-name { color: var(--cyan); }
+.ice-item.grey .ice-name { color: var(--orange); }
+
+.ice-desc {
+  font-size: 0.6rem;
+  color: #88aaaa;
+  margin-top: 2px;
+  line-height: 1.4;
+}
+.ice-rating {
+  font-family: 'VT323', monospace;
+  font-size: 1.1rem;
+  min-width: 32px;
+  text-align: right;
+}
+.ice-item.black .ice-rating { color: var(--red); }
+.ice-item.white .ice-rating { color: var(--cyan); }
+.ice-item.grey .ice-rating { color: var(--orange); }
+
+/* Data targets */
+.data-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 8px;
+  margin-bottom: 4px;
+  border-left: 2px solid var(--yellow);
+  background: rgba(255,238,0,0.04);
+  font-size: 0.65rem;
+  color: #aabb88;
+}
+.data-item .data-icon { color: var(--yellow); font-size: 0.8rem; }
+.data-item .data-val { margin-left: auto; color: var(--yellow); font-size: 0.7rem; }
+
+/* Stats */
+.stat-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 4px 0;
+  border-bottom: 1px solid rgba(0,255,200,0.06);
+  font-size: 0.62rem;
+}
+.stat-row .sk { color: #6699aa; letter-spacing: 0.1em; }
+.stat-row .sv { color: var(--cyan); font-weight: bold; }
+.stat-row .sv.danger { color: var(--red); }
+.stat-row .sv.warn { color: var(--orange); }
+.stat-row .sv.ok { color: var(--green); }
+
+/* Decker notes */
+.decker-note {
+  background: rgba(0,255,68,0.05);
+  border: 1px dashed rgba(0,255,68,0.25);
+  padding: 8px 12px;
+  font-size: 0.65rem;
+  color: #88cc99;
+  line-height: 1.7;
+  font-family: 'Courier Prime', monospace;
+}
+.decker-note .prompt { color: var(--green); margin-right: 6px; }
+
+/* Default state */
+#default-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  gap: 14px;
+  color: var(--cyan-dim);
+  text-align: center;
+  padding: 20px;
+}
+#default-state .ascii {
+  font-family: 'VT323', monospace;
+  font-size: 1.2rem;
+  color: rgba(0,255,200,0.2);
+  line-height: 1.2;
+  letter-spacing: 0.2em;
+}
+#default-state p {
+  font-size: 0.65rem;
+  letter-spacing: 0.15em;
+  line-height: 1.9;
+  color: rgba(0,255,200,0.35);
+}
+
+#panel-footer {
+  padding: 8px 18px;
+  border-top: 1px solid var(--cyan-dim);
+  font-size: 0.58rem;
+  color: var(--cyan-dim);
+  letter-spacing: 0.12em;
+  text-align: center;
+}
+
+/* ── HACK BUTTON ── */
+#hack-btn {
+  display: block;
+  width: 100%;
+  margin-top: 14px;
+  padding: 10px 0;
+  background: transparent;
+  border: 1px solid var(--green);
+  color: var(--green);
+  font-family: 'VT323', monospace;
+  font-size: 1.2rem;
+  letter-spacing: 0.25em;
+  text-transform: uppercase;
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+  transition: all 0.2s;
+}
+#hack-btn:hover {
+  background: rgba(0,255,68,0.1);
+  box-shadow: 0 0 16px rgba(0,255,68,0.4);
+  color: #fff;
+  border-color: #fff;
+}
+#hack-btn:active { transform: scale(0.97); }
+#hack-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+  border-color: #335544;
+  color: #335544;
+}
+#hack-btn.hacked {
+  border-color: var(--red);
+  color: var(--red);
+}
+#hack-btn::before {
+  content: '';
+  position: absolute;
+  top: 0; left: -100%; width: 60%; height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(0,255,68,0.15), transparent);
+  transition: left 0.4s;
+}
+#hack-btn:hover::before { left: 150%; }
+
+/* Scanning ring keyframe */
+@keyframes scanRing {
+  0%   { transform: scale(1); opacity: 0.8; }
+  100% { transform: scale(3.5); opacity: 0; }
+}
+
+/* ── BREACH LOG ── */
+#breach-log {
+  position: fixed;
+  bottom: 0; left: 0;
+  width: calc(100% - 380px);
+  height: 80px;
+  background: rgba(0,10,6,0.95);
+  border-top: 1px solid var(--cyan-dim);
+  padding: 8px 16px;
+  overflow-y: auto;
+  z-index: 40;
+  scrollbar-width: none;
+}
+#breach-log::-webkit-scrollbar { display: none; }
+.log-line {
+  font-size: 0.6rem;
+  line-height: 1.8;
+  letter-spacing: 0.08em;
+  white-space: nowrap;
+}
+.log-line .ts { color: #336644; margin-right: 8px; }
+.log-line .msg { color: var(--cyan2); }
+.log-line .msg.ok { color: var(--green); }
+.log-line .msg.warn { color: var(--orange); }
+.log-line .msg.danger { color: var(--red); }
+
+/* Adjust canvas bottom for log */
+#net-canvas { bottom: 80px !important; }
+
+/* ── LOCKED NODE indicator ── */
+.node-locked-overlay { pointer-events: none; }
+
+/* ── TOOLTIP ── */
+#tooltip {
+  position: fixed;
+  background: rgba(0,10,6,0.95);
+  border: 1px solid var(--cyan);
+  padding: 5px 10px;
+  font-size: 0.62rem;
+  color: var(--cyan);
+  pointer-events: none;
+  z-index: 60;
+  display: none;
+  letter-spacing: 0.1em;
+  box-shadow: 0 0 10px rgba(0,255,200,0.3);
+}
+</style>
+</head>
+<body>
+
+<div id="header">
+  <div class="title">// MATRIX INTRUSION //</div>
+  <div class="sep">|</div>
+  <div class="stat">HOST <span class="val">MCT-XENOBIO-DELTA</span></div>
+  <div class="sep">|</div>
+  <div class="stat">RATING <span class="val warn">8</span></div>
+  <div class="sep">|</div>
+  <div class="stat">SÉCURITÉ <span class="val danger">ALERTE ACTIVE</span></div>
+  <div class="sep">|</div>
+  <div class="stat">NŒUDS <span class="val">12</span></div>
+  <div class="trace-bar">
+    TRACE <div id="trace-fill"><div id="trace-inner"></div></div>
+    <span id="trace-pct">23%</span>
+  </div>
+</div>
+
+<canvas id="net-canvas" style="position:fixed;top:48px;left:0;right:380px;bottom:80px;"></canvas>
+
+<div id="breach-log"></div>
+
+<div id="side-panel">
+  <div id="panel-header">
+    <div id="panel-node-id">— SELECT NODE —</div>
+    <div id="panel-node-name">Cliquez sur un nœud</div>
+  </div>
+  <div id="panel-content">
+    <div id="default-state">
+      <div class="ascii">◈ ─── ◈ ─── ◈<br>│&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;│<br>◈ ─── ◈ ─── ◈</div>
+      <p>SÉLECTIONNEZ UN NŒUD<br>POUR AFFICHER<br>LES DONNÉES RÉSEAU<br>ET LES GLACES</p>
+    </div>
+    <div id="node-info" style="display:none"></div>
+  </div>
+  <div id="panel-footer">DECKER VIEW · SRA-PE-003 · COMPILÉ 03:47:22</div>
+</div>
+
+<div id="tooltip"></div>
+
+<script>
+// ═══════════════════════════════════════════════════════════════════════════
+// NETWORK DATA
+// ═══════════════════════════════════════════════════════════════════════════
+
+// ICE types
+// black = hostile (attaque le decker), white = défensif (protège les données), grey = passif (alarm/trace)
+const NODES = {
+  entrypoint: {
+    id: "NODE-00", name: "Point d'Entrée Externe",
+    type: "entry", tier: 0,
+    fw: 4, attack: 0,
+    ice: [
+      { type: "grey", name: "Probe ICE", rating: 5, icon: "◉", desc: "Détecte les intrusions. Commence une trace. Ne peut pas attaquer." },
+      { type: "white", name: "Barrier ICE", rating: 4, icon: "▦", desc: "Renforce le firewall. Chiffrement des paquets entrants. Passif." },
+    ],
+    data: [],
+    note: "> Passerelle d'entrée réseau publique MCT. Peu défendue — accès par VPN usurpé ou tunnel chiffré. PROBE actif : commence à tracer dès la connexion."
+  },
+
+  couloir_nord: {
+    id: "NODE-01", name: "Switch Principal — Couloir Nord",
+    type: "infrastructure", tier: 1,
+    fw: 6, attack: 5,
+    ice: [
+      { type: "grey", name: "Patrol ICE", rating: 6, icon: "⟳", desc: "Patrouille le sous-réseau toutes les 2 passes d'action. Déclenche alarme si accès illégitime." },
+      { type: "white", name: "Track ICE", rating: 5, icon: "◎", desc: "Identifie et journalise toutes les connexions entrantes. Alerte le SysOp." },
+    ],
+    data: [
+      { name: "Plan réseau partiel", value: "800 ¥", icon: "📡" },
+      { name: "Horaires patrouilles gardes", value: "1 200 ¥", icon: "🕐" },
+    ],
+    note: "> Hub de routage principal. Les données d'horaire ici sont GOLD — confirment le cycle 12 min. Patrol ICE prioritaire à neutraliser avant de progresser."
+  },
+
+  cameras: {
+    id: "NODE-02", name: "Réseau Caméras Surveillance",
+    type: "security", tier: 1,
+    fw: 5, attack: 0,
+    ice: [
+      { type: "grey", name: "Probe ICE ×2", rating: 5, icon: "◉", desc: "Deux instances de Probe sur ce nœud. Double trace si détection." },
+      { type: "white", name: "Scramble ICE", rating: 6, icon: "≋", desc: "Brouille les flux si accès non autorisé. Déclenche alarme visuelle." },
+    ],
+    data: [
+      { name: "Flux caméras live (8×)", value: "—", icon: "📷" },
+      { name: "Archives 72h", value: "300 ¥", icon: "💾" },
+    ],
+    note: "> Neutraliser ce nœud = blind spot physique total. SCRAMBLE déclenche alarme si non contourné. Accès via NODE-01 ou bypass direct Seuil 8."
+  },
+
+  badges: {
+    id: "NODE-03", name: "Gestionnaire Badges & Accès",
+    type: "security", tier: 1,
+    fw: 7, attack: 6,
+    ice: [
+      { type: "black", name: "Blaster ICE", rating: 7, icon: "☢", desc: "HOSTILE. Attaque le persona. Dégâts de matrice 7. Bruler sur contact." },
+      { type: "white", name: "Barrier ICE ×2", rating: 6, icon: "▦", desc: "Double couche défensive. FW effectif +4 si les deux actifs." },
+      { type: "grey", name: "Tar Baby ICE", rating: 5, icon: "⊗", desc: "Ralentit l'éjection. Si déclenché, decker piégé pendant 1 passe." },
+    ],
+    data: [
+      { name: "Clés badge Niv.4 (génération)", value: "3 000 ¥", icon: "🔑" },
+      { name: "Accréditation biométrique Dr.Chen", value: "OBJECTIF", icon: "⬟" },
+    ],
+    note: "> NŒUD CRITIQUE. Contient la clé bio du responsable labo — ouvre le container EM-7. BLASTER Rating 7 : très dangereux. Recommend : Spoof + Tunnel avant intrusion."
+  },
+
+  sas_control: {
+    id: "NODE-04", name: "Contrôle Sas Décontamination",
+    type: "access", tier: 2,
+    fw: 6, attack: 5,
+    ice: [
+      { type: "black", name: "Blaster ICE", rating: 5, icon: "☢", desc: "HOSTILE. Dégâts matrice 5. Déclenche alarme niveau 2 en mourant." },
+      { type: "grey", name: "Probe ICE", rating: 6, icon: "◉", desc: "Probe haute sensibilité — détecte les accès en lecture seule." },
+    ],
+    data: [
+      { name: "Override sas (déverrouillage)", value: "ACTION", icon: "🚪" },
+      { name: "Protocole décontamination", value: "INFO", icon: "📋" },
+    ],
+    note: "> Override sas = porte ouverte pour le physad. Ne pas tuer le PROBE avant l'override : le BLASTER s'active si le PROBE meurt sans autorisation."
+  },
+
+  terminal_reseau: {
+    id: "NODE-05", name: "Terminal Admin — Nœud Central",
+    type: "admin", tier: 2,
+    fw: 8, attack: 7,
+    ice: [
+      { type: "black", name: "Killer ICE", rating: 8, icon: "💀", desc: "HOSTILE LETHAL. Dégâts matrice 8. Tentative de griller le deck. Priorité : decker." },
+      { type: "black", name: "Blaster ICE", rating: 7, icon: "☢", desc: "HOSTILE. Support du Killer. Attaque si Killer engagé." },
+      { type: "white", name: "Armor ICE", rating: 7, icon: "◈", desc: "Protège le nœud. Réduit les dégâts sur le host de 7 points." },
+      { type: "grey", name: "Patrol ICE", rating: 7, icon: "⟳", desc: "Patrouille aggressive. Déclenche Killer immédiatement si détecté." },
+    ],
+    data: [
+      { name: "Données recherche EM-7 complètes", value: "8 000 ¥", icon: "⬟" },
+      { name: "Journaux chercheurs (Dr. Navabi)", value: "2 000 ¥", icon: "📖" },
+      { name: "Accès root sous-réseau", value: "ADMIN", icon: "⚙" },
+    ],
+    note: "> NŒUD ADMIN. Accès root = contrôle total du host. KILLER Rating 8 : fatal si le decker est déjà blessé. Ne pas approcher sans avoir neutralisé PATROL d'abord. Données Navabi : preuve du couvercle."
+  },
+
+  generateur_ctrl: {
+    id: "NODE-06", name: "Contrôle Générateurs",
+    type: "infrastructure", tier: 2,
+    fw: 5, attack: 4,
+    ice: [
+      { type: "grey", name: "Probe ICE", rating: 5, icon: "◉", desc: "Surveillance standard. Alerte maintenance si anomalie." },
+      { type: "white", name: "Barrier ICE", rating: 5, icon: "▦", desc: "Protection basique. Pas de composant offensif." },
+    ],
+    data: [
+      { name: "Coupure sélective (par salle)", value: "ACTION", icon: "⚡" },
+      { name: "Coupure totale + batterie backup", value: "ACTION", icon: "💥" },
+    ],
+    note: "> Nœud peu défendu. Accès facile depuis NODE-05. Coupure totale = 40 sec avant alarme backup. Combo avec NODE-02 (caméras) = chaos total."
+  },
+
+  dortoir_sys: {
+    id: "NODE-07", name: "Système Dortoir — I/O Perso",
+    type: "personal", tier: 2,
+    fw: 3, attack: 0,
+    ice: [
+      { type: "white", name: "Barrier ICE", rating: 3, icon: "▦", desc: "Faible. Protection personnelle d'un des chercheurs (probablement Navabi)." },
+    ],
+    data: [
+      { name: "Journal chiffré Dr. Navabi", value: "OBJECTIF", icon: "📓" },
+      { name: "Communications personnelles", value: "500 ¥", icon: "✉" },
+    ],
+    note: "> Nœud personnel peu protégé. Journal Navabi ici — version numérique du carnet physique. BARRIER faible : bypass trivial (Seuil 4). Probablement oublié par MCT."
+  },
+
+  labo_data: {
+    id: "NODE-08", name: "Serveur Labo Chimique",
+    type: "research", tier: 2,
+    fw: 7, attack: 5,
+    ice: [
+      { type: "black", name: "Blaster ICE", rating: 6, icon: "☢", desc: "HOSTILE. Protège les données de recherche propriétaires MCT." },
+      { type: "white", name: "Track ICE", rating: 7, icon: "◎", desc: "Journalise toute lecture de données. Alerte MCT Xenobio si export détecté." },
+      { type: "grey", name: "Probe ICE", rating: 5, icon: "◉", desc: "Détection en temps réel." },
+    ],
+    data: [
+      { name: "Analyses échantillons EM-7 (brutes)", value: "5 000 ¥", icon: "🧪" },
+      { name: "Note barrée — « ELLE RÉPOND »", value: "PREUVE", icon: "⚠" },
+      { name: "Composition chimique inconnue", value: "3 000 ¥", icon: "⬟" },
+    ],
+    note: "> Données de recherche PRIMAIRES. TRACK alerte MCT corp si export — vendre ces données = ennuis avec Xenobio. La note « ELLE RÉPOND » confirme comportement conscient de l'artefact."
+  },
+
+  poste_garde_sys: {
+    id: "NODE-09", name: "Console Sécurité — Poste Garde",
+    type: "security", tier: 2,
+    fw: 7, attack: 7,
+    ice: [
+      { type: "black", name: "Killer ICE", rating: 7, icon: "💀", desc: "HOSTILE. Protège la console de sécurité. Priorité : neutraliser les intrus réseau." },
+      { type: "grey", name: "Patrol ICE ×2", rating: 6, icon: "⟳", desc: "Double patrouille. Cycle de 1 passe. Très réactif." },
+    ],
+    data: [
+      { name: "Monitoring gardes (temps réel)", value: "—", icon: "👁" },
+      { name: "Armurerie — code coffre 4 chiffres", value: "OBJECTIF", icon: "🔒" },
+    ],
+    note: "> KILLER Rating 7 en première ligne. Code coffre armurerie ici — accès armes Ares Alpha. Ne pirater que si l'équipe a besoin du code. Trop de bruit sinon."
+  },
+
+  confinement_sys: {
+    id: "NODE-10", name: "Système Confinement — EM-7",
+    type: "critical", tier: 3,
+    fw: 9, attack: 8,
+    ice: [
+      { type: "black", name: "Killer ICE", rating: 9, icon: "💀", desc: "HOSTILE LETHAL. Rating max sur ce nœud. Dégâts 9 par passe. MCT a mis le paquet." },
+      { type: "black", name: "Blaster ICE ×2", rating: 8, icon: "☢", desc: "Deux Blasters en support du Killer. Débordement garanti sans préparation." },
+      { type: "white", name: "Armor ICE", rating: 9, icon: "◈", desc: "Protection maximale. Réduit toute intrusion de 9 points." },
+      { type: "white", name: "Barrier ICE", rating: 8, icon: "▦", desc: "Firewall renforcé. Accès impossble sans déchiffrement préalable." },
+      { type: "grey", name: "Tar Baby ICE", rating: 7, icon: "⊗", desc: "PIÈGE. Si activé, déconnexion impossible pendant 3 passes. Decker piégé." },
+    ],
+    data: [
+      { name: "Unlock container EM-7 (biométrie override)", value: "OBJECTIF", icon: "⬟" },
+      { name: "Capteurs magnétiques (désactivation)", value: "ACTION", icon: "🧲" },
+      { name: "Rapport confinement complet", value: "10 000 ¥", icon: "📁" },
+    ],
+    note: "> NŒUD CIBLE PRINCIPAL. Défenses maximales — MCT sait ce qu'il protège. TAR BABY = piège mortel si déclenché en alerte. RECOMMANDÉ : accéder via clé bio NODE-03 plutôt que par intrusion brute."
+  },
+
+  sysop: {
+    id: "NODE-11", name: "Agent SysOp — IA Surveillance",
+    type: "hostile", tier: 3,
+    fw: 10, attack: 9,
+    ice: [
+      { type: "black", name: "AGENT MCT-Ω", rating: 10, icon: "Ω", desc: "IA HOSTILE ACTIVE. Pas une Glace — un Agent autonome. Combat rating 10. Alerté après 2 alarmes." },
+    ],
+    data: [],
+    note: "> L'AGENT se réveille après 2 alarmes déclenchées. À ce stade : décampez. Rating 10 — aucun decker de la team ne peut le tenir. Seule option : déconnexion forcée ou jeu sur les latences."
+  },
+};
+
+// Network graph edges [from, to]
+const EDGES = [
+  ["entrypoint", "couloir_nord"],
+  ["entrypoint", "cameras"],
+  ["couloir_nord", "badges"],
+  ["couloir_nord", "sas_control"],
+  ["couloir_nord", "terminal_reseau"],
+  ["cameras", "terminal_reseau"],
+  ["badges", "terminal_reseau"],
+  ["sas_control", "terminal_reseau"],
+  ["terminal_reseau", "generateur_ctrl"],
+  ["terminal_reseau", "dortoir_sys"],
+  ["terminal_reseau", "labo_data"],
+  ["terminal_reseau", "poste_garde_sys"],
+  ["terminal_reseau", "confinement_sys"],
+  ["labo_data", "confinement_sys"],
+  ["confinement_sys", "sysop"],
+  ["poste_garde_sys", "sysop"],
+];
+
+// Node positions (relative 0..1)
+const NODE_POS = {
+  entrypoint:      [0.50, 0.05],
+  couloir_nord:    [0.50, 0.18],
+  cameras:         [0.18, 0.22],
+  badges:          [0.30, 0.35],
+  sas_control:     [0.68, 0.35],
+  terminal_reseau: [0.50, 0.48],
+  generateur_ctrl: [0.15, 0.58],
+  dortoir_sys:     [0.30, 0.62],
+  labo_data:       [0.68, 0.62],
+  poste_garde_sys: [0.82, 0.55],
+  confinement_sys: [0.50, 0.75],
+  sysop:           [0.50, 0.93],
+};
+
+// ═══════════════════════════════════════════════════════════════════════════
+// CANVAS ENGINE — PROGRESSIVE DISCOVERY
+// ═══════════════════════════════════════════════════════════════════════════
+const canvas = document.getElementById('net-canvas');
+const ctx = canvas.getContext('2d');
+let W, H;
+let hoveredNode = null;
+let selectedNode = null;
+let animT = 0;
+
+// ── DISCOVERY STATE ──────────────────────────────────────────────────────
+// States: 'hidden' | 'scanning' | 'revealed' | 'breached'
+const nodeState = {};
+const scanProgress = {};
+const revealProgress = {};
+const scanRings = [];
+
+Object.keys(NODES).forEach(k => {
+  nodeState[k] = 'hidden';
+  scanProgress[k] = 0;
+  revealProgress[k] = 0;
+});
+
+// Start with entrypoint visible
+nodeState['entrypoint'] = 'revealed';
+revealProgress['entrypoint'] = 1;
+
+// Adjacency map
+const ADJACENCY = {};
+Object.keys(NODES).forEach(k => ADJACENCY[k] = []);
+EDGES.forEach(([a, b]) => {
+  if (!ADJACENCY[a]) ADJACENCY[a] = [];
+  if (!ADJACENCY[b]) ADJACENCY[b] = [];
+  ADJACENCY[a].push(b);
+  ADJACENCY[b].push(a);
+});
+
+function getReachableFromBreached() {
+  const reachable = new Set();
+  Object.keys(nodeState).forEach(k => {
+    if (nodeState[k] === 'breached') {
+      (ADJACENCY[k]||[]).forEach(nb => {
+        if (nodeState[nb] === 'hidden') reachable.add(nb);
+      });
+    }
+  });
+  return reachable;
+}
+
+function isAccessible(key) {
+  return nodeState[key] === 'revealed' || nodeState[key] === 'breached';
+}
+
+// Node type visual config
+const TYPE_CFG = {
+  entry:          { color: '#00ff88', glow: '#00ff88', shape: 'diamond', label: 'ENTRY' },
+  infrastructure: { color: '#00ccff', glow: '#00ccff', shape: 'hex',     label: 'INFRA' },
+  security:       { color: '#ff8800', glow: '#ff8800', shape: 'square',  label: 'SEC' },
+  access:         { color: '#ffcc00', glow: '#ffcc00', shape: 'square',  label: 'ACCESS' },
+  admin:          { color: '#ff44ff', glow: '#ff44ff', shape: 'hex',     label: 'ADMIN' },
+  research:       { color: '#44ffcc', glow: '#44ffcc', shape: 'circle',  label: 'DATA' },
+  personal:       { color: '#8888ff', glow: '#8888ff', shape: 'circle',  label: 'PERS' },
+  critical:       { color: '#ffaa00', glow: '#ffaa00', shape: 'hex',     label: 'CRIT' },
+  hostile:        { color: '#ff2244', glow: '#ff2244', shape: 'diamond', label: 'AGENT' },
+};
+
+function nodeIceThreat(node) {
+  if (!node.ice || node.ice.length === 0) return null;
+  if (node.ice.some(i => i.type === 'black')) return '#ff2244';
+  if (node.ice.some(i => i.type === 'grey')) return '#ff8800';
+  return '#00ccff';
+}
+
+function resize() {
+  W = window.innerWidth - 380;
+  H = window.innerHeight - 48 - 80;
+  canvas.width = W;
+  canvas.height = H;
+}
+
+function nx(rx) { return rx * W; }
+function ny(ry) { return ry * H; }
+
+function getNodeRadius(key) {
+  const node = NODES[key];
+  const base = Math.min(W, H) * 0.038;
+  if (node.type === 'critical' || node.type === 'hostile') return base * 1.3;
+  if (node.type === 'admin') return base * 1.15;
+  if (node.type === 'entry') return base * 0.9;
+  return base;
+}
+
+function hexPath(x, y, r) {
+  ctx.beginPath();
+  for (let i = 0; i < 6; i++) {
+    const a = (Math.PI / 180) * (60 * i - 30);
+    const px2 = x + r * Math.cos(a), py2 = y + r * Math.sin(a);
+    if (i === 0) ctx.moveTo(px2, py2); else ctx.lineTo(px2, py2);
+  }
+  ctx.closePath();
+}
+function diamondPath(x, y, r) {
+  ctx.beginPath();
+  ctx.moveTo(x, y-r); ctx.lineTo(x+r*0.7, y);
+  ctx.lineTo(x, y+r); ctx.lineTo(x-r*0.7, y);
+  ctx.closePath();
+}
+function squarePath(x, y, r) {
+  const s = r * 0.9;
+  ctx.beginPath(); ctx.rect(x-s, y-s, s*2, s*2);
+}
+function drawNodeShape(x, y, r, shape) {
+  switch(shape) {
+    case 'hex':     hexPath(x, y, r); break;
+    case 'diamond': diamondPath(x, y, r); break;
+    case 'square':  squarePath(x, y, r); break;
+    default: ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI*2); break;
+  }
+}
+
+// ── EDGE DRAWING ─────────────────────────────────────────────────────────
+function drawEdges() {
+  EDGES.forEach(([a, b], edgeIdx) => {
+    if (!NODE_POS[a] || !NODE_POS[b]) return;
+    const stA = nodeState[a], stB = nodeState[b];
+    const aVis = stA === 'revealed' || stA === 'breached' || stA === 'scanning';
+    const bVis = stB === 'revealed' || stB === 'breached' || stB === 'scanning';
+    if (!aVis && !bVis) return;
+
+    const [ax, ay] = NODE_POS[a];
+    const [bx, by] = NODE_POS[b];
+    const x1 = nx(ax), y1 = ny(ay), x2 = nx(bx), y2 = ny(by);
+    const ca = TYPE_CFG[NODES[a].type].color;
+    const cb = TYPE_CFG[NODES[b].type].color;
+    const bothVis = aVis && bVis;
+    const alpha = bothVis ? '99' : '33';
+
+    const grad = ctx.createLinearGradient(x1, y1, x2, y2);
+    grad.addColorStop(0, ca + alpha);
+    grad.addColorStop(1, cb + alpha);
+    ctx.strokeStyle = grad;
+    ctx.lineWidth = bothVis ? 3 : 1.5;
+    ctx.setLineDash(bothVis ? [6, 5] : [3, 8]);
+    ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+    ctx.setLineDash([]);
+
+    // Animated data packet on breached edges
+    if (stA === 'breached' && bVis) {
+      const t = ((animT * 0.003 + edgeIdx * 0.13) % 1);
+      const px2 = x1 + (x2-x1)*t, py2 = y1 + (y2-y1)*t;
+      ctx.beginPath(); ctx.arc(px2, py2, 4, 0, Math.PI*2);
+      ctx.fillStyle = ca + 'ff'; ctx.fill();
+      ctx.strokeStyle = '#000'; ctx.lineWidth = 1; ctx.stroke();
+    }
+  });
+}
+
+// ── SCAN RINGS ───────────────────────────────────────────────────────────
+function updateScanRings() {
+  for (let i = scanRings.length - 1; i >= 0; i--) {
+    scanRings[i].t += 0.025;
+    if (scanRings[i].t >= 1) scanRings.splice(i, 1);
+  }
+  scanRings.forEach(ring => {
+    const r = ring.baseR * (1 + ring.t * 2.5);
+    const alpha = (1 - ring.t) * 0.7;
+    ctx.beginPath(); ctx.arc(ring.x, ring.y, r, 0, Math.PI*2);
+    ctx.strokeStyle = ring.color + Math.floor(alpha * 255).toString(16).padStart(2,'0');
+    ctx.lineWidth = 2; ctx.stroke();
+  });
+}
+
+// ── NODE DRAWING ──────────────────────────────────────────────────────────
+function drawNode(key) {
+  const st = nodeState[key];
+  if (st === 'hidden') return;
+
+  const node = NODES[key];
+  const [rx, ry] = NODE_POS[key];
+  const x = nx(rx), y = ny(ry);
+  const r = getNodeRadius(key);
+  const cfg = TYPE_CFG[node.type];
+  const isHov = hoveredNode === key;
+  const isSel = selectedNode === key;
+  const threat = nodeIceThreat(node);
+  const rp = revealProgress[key];
+
+  ctx.save();
+  ctx.globalAlpha = rp;
+
+  if (st === 'scanning') {
+    const sp = scanProgress[key];
+    ctx.globalAlpha = rp * (0.3 + sp * 0.7);
+    // Rotating scan arc
+    ctx.beginPath();
+    ctx.arc(x, y, r * 1.6, -Math.PI/2, -Math.PI/2 + sp * Math.PI * 2);
+    ctx.strokeStyle = cfg.color; ctx.lineWidth = 2; ctx.stroke();
+    // Dashed ring
+    ctx.setLineDash([3, 5]);
+    ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI*2);
+    ctx.strokeStyle = cfg.color + '44'; ctx.lineWidth = 1; ctx.stroke();
+    ctx.setLineDash([]);
+    // Scanning label
+    ctx.font = `${Math.max(7, r*0.35)}px 'Share Tech Mono'`;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillStyle = cfg.color + '88';
+    ctx.fillText('SCAN...', x, y);
+    ctx.restore();
+    return;
+  }
+
+  const isBreached = st === 'breached';
+
+  // Pulsing threat ring
+  if (threat && !isBreached && (node.type === 'critical' || node.type === 'hostile' || node.ice?.some(i=>i.type==='black'))) {
+    const pulse = 0.5 + 0.5 * Math.sin(animT * 0.05);
+    ctx.beginPath(); ctx.arc(x, y, r + 6 + pulse * 5, 0, Math.PI*2);
+    ctx.strokeStyle = threat + Math.floor(pulse * 160).toString(16).padStart(2,'0');
+    ctx.lineWidth = 1.5; ctx.stroke();
+  }
+
+  // Breached pulse ring
+  if (isBreached) {
+    const pulse = 0.5 + 0.5 * Math.sin(animT * 0.08);
+    ctx.beginPath(); ctx.arc(x, y, r + 4 + pulse * 3, 0, Math.PI*2);
+    ctx.strokeStyle = `rgba(0,255,68,${0.3 + pulse * 0.3})`;
+    ctx.lineWidth = 1.5; ctx.stroke();
+  }
+
+  // Glow halo
+  const glowR = isHov || isSel ? r * 2.5 : r * 1.9;
+  const glow = ctx.createRadialGradient(x, y, r*0.3, x, y, glowR);
+  const glowCol = isBreached ? '#00ff44' : isSel ? '#ffffff' : cfg.glow;
+  glow.addColorStop(0, glowCol + '55'); glow.addColorStop(1, 'transparent');
+  ctx.fillStyle = glow; ctx.beginPath(); ctx.arc(x, y, glowR, 0, Math.PI*2); ctx.fill();
+
+  // ICE threat ring
+  if (threat && !isBreached) {
+    drawNodeShape(x, y, r+5, cfg.shape);
+    ctx.strokeStyle = threat + 'bb'; ctx.lineWidth = 2.5; ctx.stroke();
+  }
+
+  // Main fill
+  drawNodeShape(x, y, r, cfg.shape);
+  const bg = ctx.createRadialGradient(x, y-r*0.3, 0, x, y, r);
+  const fillCol = isBreached ? '#00ff44' : cfg.color;
+  bg.addColorStop(0, fillCol + (isBreached ? '55' : '66'));
+  bg.addColorStop(1, fillCol + '22');
+  ctx.fillStyle = bg; ctx.fill();
+  ctx.strokeStyle = isBreached ? '#00ff44' : isSel ? '#ffffff' : isHov ? cfg.color : cfg.color+'dd';
+  ctx.lineWidth = isSel ? 4 : isHov ? 3.5 : isBreached ? 3.5 : 2.5;
+  ctx.stroke();
+
+  if (isBreached) {
+    ctx.font = `bold ${r * 0.55}px 'Share Tech Mono'`;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillStyle = 'rgba(0,255,68,0.9)';
+    ctx.fillText('\u2713', x, y);
+  } else {
+    ctx.strokeStyle = cfg.color + '55'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(x-r*0.4, y); ctx.lineTo(x+r*0.4, y); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(x, y-r*0.4); ctx.lineTo(x, y+r*0.4); ctx.stroke();
+
+    if (node.ice && node.ice.length > 0) {
+      const bx2 = x+r*0.65, by2 = y-r*0.65, br2 = 7;
+      ctx.beginPath(); ctx.arc(bx2, by2, br2, 0, Math.PI*2);
+      ctx.fillStyle = threat; ctx.fill();
+      ctx.strokeStyle = '#000'; ctx.lineWidth = 1.5; ctx.stroke();
+      ctx.fillStyle = '#fff';
+      ctx.font = `bold ${br2*1.2}px 'Share Tech Mono'`;
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText(node.ice.length, bx2, by2);
+    }
+
+    ctx.font = `bold ${Math.max(9, r*0.4)}px 'Share Tech Mono'`;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillStyle = 'rgba(0,0,0,0.9)'; ctx.fillText(node.id, x+1, y+1);
+    ctx.fillStyle = isSel ? '#ffffff' : cfg.color; ctx.fillText(node.id, x, y);
+  }
+
+  ctx.font = `${Math.max(7, r*0.3)}px 'Share Tech Mono'`;
+  ctx.fillStyle = 'rgba(0,0,0,0.9)';
+  ctx.fillText(isBreached ? 'PWND' : `FW:${node.fw}`, x+1, y+r+10);
+  ctx.fillStyle = isBreached ? '#00ff44ff' : (threat ? threat+'ff' : cfg.color+'cc');
+  ctx.fillText(isBreached ? 'PWND' : `FW:${node.fw}`, x, y+r+10);
+
+  ctx.font = `${Math.max(6, r*0.28)}px 'Share Tech Mono'`;
+  ctx.fillStyle = isBreached ? '#00ff4499' : cfg.color+'99';
+  ctx.fillText(isBreached ? 'ACCESS OK' : cfg.label, x, y-r-8);
+
+  ctx.restore();
+}
+
+// Ghost outlines for detectable-but-not-yet-scanning nodes
+function drawGhostNodes() {
+  const reachable = getReachableFromBreached();
+  reachable.forEach(key => {
+    if (nodeState[key] !== 'hidden') return;
+    if (!NODE_POS[key]) return;
+    const [rx, ry] = NODE_POS[key];
+    const x = nx(rx), y = ny(ry);
+    const r = getNodeRadius(key);
+    const cfg = TYPE_CFG[NODES[key].type];
+
+    ctx.save();
+    ctx.globalAlpha = 0.15 + 0.06 * Math.sin(animT * 0.04);
+    ctx.setLineDash([3, 6]);
+    drawNodeShape(x, y, r, cfg.shape);
+    ctx.strokeStyle = cfg.color; ctx.lineWidth = 1; ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.font = `${Math.max(6, r*0.28)}px 'Share Tech Mono'`;
+    ctx.fillStyle = cfg.color + '88';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText('???', x, y);
+    ctx.restore();
+  });
+}
+
+function drawBackground() {
+  ctx.fillStyle = '#000200';
+  ctx.fillRect(0, 0, W, H);
+  const size = 28;
+  const cols = Math.ceil(W / (size*1.73)) + 2;
+  const rows = Math.ceil(H / (size*1.5)) + 2;
+  ctx.strokeStyle = 'rgba(0,255,200,0.07)';
+  ctx.lineWidth = 0.8;
+  for (let row = -1; row < rows; row++) {
+    for (let col = -1; col < cols; col++) {
+      const x = col*size*1.73 + (row%2)*size*0.87;
+      const y = row*size*1.5;
+      hexPath(x, y, size*0.95); ctx.stroke();
+    }
+  }
+}
+
+// ── SCAN TICK ─────────────────────────────────────────────────────────────
+function tickScanning() {
+  Object.keys(nodeState).forEach(k => {
+    if (nodeState[k] === 'scanning') {
+      scanProgress[k] = Math.min(1, scanProgress[k] + 0.008);
+      revealProgress[k] = Math.min(1, revealProgress[k] + 0.04);
+      if (scanProgress[k] >= 1) {
+        nodeState[k] = 'revealed';
+        revealProgress[k] = 1;
+        const [rx, ry] = NODE_POS[k];
+        const x = nx(rx), y = ny(ry);
+        const r = getNodeRadius(k);
+        const col = TYPE_CFG[NODES[k].type].color;
+        for (let i = 0; i < 3; i++) scanRings.push({ x, y, t: i*0.15, baseR: r, color: col });
+        addLog(`NODE ${NODES[k].id} IDENTIFI\u00c9 \u2014 ${NODES[k].name}`, 'ok');
+        if (NODES[k].ice?.some(i => i.type === 'black'))
+          addLog(`\u26a0 GLACE NOIRE D\u00c9TECT\u00c9E SUR ${NODES[k].id} \u2014 BLACK ICE ACTIVE`, 'danger');
+      }
+    }
+    if ((nodeState[k] === 'revealed' || nodeState[k] === 'breached') && revealProgress[k] < 1)
+      revealProgress[k] = Math.min(1, revealProgress[k] + 0.06);
+  });
+}
+
+function draw() {
+  tickScanning();
+  drawBackground();
+  updateScanRings();
+  drawEdges();
+  drawGhostNodes();
+  Object.keys(NODES).forEach(key => { if (NODE_POS[key]) drawNode(key); });
+  animT++;
+  requestAnimationFrame(draw);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// BREACH LOG
+// ═══════════════════════════════════════════════════════════════════════════
+function addLog(msg, cls) {
+  cls = cls || 'msg';
+  const log = document.getElementById('breach-log');
+  const now = new Date();
+  const ts = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}:${String(now.getSeconds()).padStart(2,'0')}`;
+  const div = document.createElement('div');
+  div.className = 'log-line';
+  div.innerHTML = `<span class="ts">[${ts}]</span><span class="msg ${cls}">${msg}</span>`;
+  log.appendChild(div);
+  log.scrollTop = log.scrollHeight;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// HIT TEST
+// ═══════════════════════════════════════════════════════════════════════════
+function getNodeAt(mx, my) {
+  let best = null, bestDist = Infinity;
+  Object.keys(NODES).forEach(key => {
+    if (!NODE_POS[key] || !isAccessible(key)) return;
+    const [rx, ry] = NODE_POS[key];
+    const x = nx(rx), y = ny(ry);
+    const r = getNodeRadius(key);
+    const d = Math.hypot(mx-x, my-y);
+    if (d < r+6 && d < bestDist) { best = key; bestDist = d; }
+  });
+  return best;
+}
+
+canvas.addEventListener('mousemove', e => {
+  const rect = canvas.getBoundingClientRect();
+  const key = getNodeAt(e.clientX-rect.left, e.clientY-rect.top);
+  hoveredNode = key;
+  canvas.style.cursor = key ? 'pointer' : 'crosshair';
+  const tip = document.getElementById('tooltip');
+  if (key) {
+    const node = NODES[key];
+    tip.style.display = 'block';
+    tip.style.left = (e.clientX+14)+'px';
+    tip.style.top  = (e.clientY-10)+'px';
+    const st = nodeState[key];
+    tip.innerHTML = `${node.id} \u2014 ${node.name}<br><span style="color:#ff8800">ICE: ${node.ice.length}</span> \u00b7 <span style="color:#00ffcc">FW: ${node.fw}</span> \u00b7 <span style="color:${st==='breached'?'#00ff44':'#ffee00'}">${st.toUpperCase()}</span>`;
+  } else { tip.style.display = 'none'; }
+});
+
+canvas.addEventListener('click', e => {
+  const rect = canvas.getBoundingClientRect();
+  const key = getNodeAt(e.clientX-rect.left, e.clientY-rect.top);
+  if (key) { selectedNode = key; showNodeInfo(key); }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// BREACH ACTION
+// ═══════════════════════════════════════════════════════════════════════════
+function breachNode(key) {
+  if (nodeState[key] !== 'revealed') return;
+  const node = NODES[key];
+  nodeState[key] = 'breached';
+
+  tracePct = Math.min(99, tracePct + (node.fw * 1.8 + (node.ice?.some(i=>i.type==='black') ? 12 : 4)));
+  document.getElementById('trace-inner').style.width = tracePct + '%';
+  document.getElementById('trace-pct').textContent = tracePct.toFixed(0) + '%';
+  if (tracePct > 75) document.getElementById('trace-inner').style.background = 'linear-gradient(90deg,#ff4400,#ff0000)';
+  else if (tracePct > 50) document.getElementById('trace-inner').style.background = 'linear-gradient(90deg,#ffaa00,#ff4400)';
+
+  addLog(`>>> INTRUSION ${node.id} \u2014 ${node.name}`, 'ok');
+  if (node.ice.length > 0) addLog(`CONTOURNEMENT: ${node.ice.map(i=>i.name).join(', ')}`, 'warn');
+  node.data.forEach(d => { if (d.value==='OBJECTIF') addLog(`\u29d0 OBJECTIF ATTEINT: ${d.name}`, 'ok'); });
+  if (tracePct > 75) addLog('\u26a0 TRACE CRITIQUE \u2014 D\u00c9CONNEXION IMMINENTE', 'danger');
+
+  // Start scanning adjacent hidden nodes
+  (ADJACENCY[key]||[]).forEach(nb => {
+    if (nodeState[nb] === 'hidden') {
+      nodeState[nb] = 'scanning';
+      scanProgress[nb] = 0;
+      revealProgress[nb] = 0;
+      addLog(`SCAN N\u0152UD ADJACENT ${NODES[nb].id}...`, 'msg');
+    }
+  });
+
+  showNodeInfo(key);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// SIDE PANEL
+// ═══════════════════════════════════════════════════════════════════════════
+function showNodeInfo(key) {
+  const node = NODES[key];
+  const st = nodeState[key];
+  document.getElementById('panel-node-id').textContent = node.id;
+  document.getElementById('panel-node-name').textContent = node.name;
+  document.getElementById('default-state').style.display = 'none';
+  const info = document.getElementById('node-info');
+  info.style.display = 'block';
+
+  const cfg = TYPE_CFG[node.type];
+  const hasBlack = node.ice?.some(i => i.type === 'black');
+  const isBreached = st === 'breached';
+  const adjacentBreached = (ADJACENCY[key]||[]).some(nb => nodeState[nb] === 'breached');
+  const isEntry = key === 'entrypoint';
+  const canAct = !isBreached && (isEntry || adjacentBreached);
+
+  const iceHTML = node.ice.map(ice => `
+    <div class="ice-item ${ice.type}">
+      <div class="ice-icon">${ice.icon}</div>
+      <div class="ice-info"><div class="ice-name">${ice.name}</div><div class="ice-desc">${ice.desc}</div></div>
+      <div class="ice-rating">${ice.rating}</div>
+    </div>`).join('');
+
+  const dataHTML = node.data.length > 0
+    ? node.data.map(d => `<div class="data-item"><span class="data-icon">${d.icon}</span><span>${d.name}</span><span class="data-val">${d.value}</span></div>`).join('')
+    : '<div style="font-size:0.62rem;color:#335544;padding:4px 0">\u2014 Pas de donn\u00e9es extractibles \u2014</div>';
+
+  let btnLabel, btnClass, btnDisabled;
+  if (isBreached) { btnLabel = '\u25c8 N\u0152UD COMPROMIS'; btnClass = 'hacked'; btnDisabled = true; }
+  else if (!canAct) { btnLabel = '\u2298 ACC\u00c8S NON \u00c9TABLI'; btnClass = ''; btnDisabled = true; }
+  else { btnLabel = `\u25c8 FRANCHIR ${node.id}`; btnClass = ''; btnDisabled = false; }
+
+  info.innerHTML = `
+    <div class="p-block">
+      <h3>Statistiques R\u00e9seau</h3>
+      <div class="stat-row"><span class="sk">\u00c9TAT</span><span class="sv ${isBreached?'ok':'warn'}">${st.toUpperCase()}</span></div>
+      <div class="stat-row"><span class="sk">FIREWALL</span><span class="sv ${node.fw>=8?'danger':node.fw>=6?'warn':'ok'}">${node.fw}</span></div>
+      <div class="stat-row"><span class="sk">ATTAQUE IC</span><span class="sv ${node.attack>=8?'danger':node.attack>=5?'warn':'ok'}">${node.attack||'\u2014'}</span></div>
+      <div class="stat-row"><span class="sk">TYPE N\u0152UD</span><span class="sv" style="color:${cfg.color}">${cfg.label}</span></div>
+      <div class="stat-row"><span class="sk">GLACES ACTIVES</span><span class="sv ${hasBlack?'danger':'warn'}">${node.ice.length}</span></div>
+    </div>
+    ${node.ice.length > 0 ? `<div class="p-block"><h3>Glaces \u2014 ICE D\u00e9tect\u00e9es</h3>${iceHTML}</div>` : ''}
+    <div class="p-block"><h3>Donn\u00e9es Extractibles</h3>${dataHTML}</div>
+    <div class="p-block"><h3>Notes Decker</h3><div class="decker-note"><span class="prompt">&gt;</span>${node.note}</div></div>
+    <button id="hack-btn" class="${btnClass}" ${btnDisabled?'disabled':''} onclick="breachNode('${key}')">${btnLabel}</button>
+  `;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// TRACE
+// ═══════════════════════════════════════════════════════════════════════════
+let tracePct = 0;
+setInterval(() => {
+  tracePct = Math.min(99, tracePct + 0.04);
+  document.getElementById('trace-inner').style.width = tracePct + '%';
+  document.getElementById('trace-pct').textContent = tracePct.toFixed(0) + '%';
+}, 300);
+
+// ═══════════════════════════════════════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════════════════════════════════════
+window.addEventListener('resize', resize);
+resize();
+draw();
+setTimeout(() => addLog('CONNEXION \u00c9TABLIE \u2014 HOST MCT-XENOBIO-DELTA NIVEAU 8', 'ok'), 300);
+setTimeout(() => addLog('SCAN INITIAL... N\u0152UD D\'ENTR\u00c9E D\u00c9TECT\u00c9', 'msg'), 800);
+setTimeout(() => addLog('ATTENTION: PROBE ICE ACTIF \u2014 TRACE EN COURS', 'warn'), 1400);
+
+</script>
+</body>
+</html>
