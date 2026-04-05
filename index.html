@@ -376,6 +376,98 @@ body::after {
   100% { transform: scale(3.5); opacity: 0; }
 }
 
+/* ── SCREEN FLASH ── */
+#screen-flash {
+  position: fixed; inset: 0;
+  pointer-events: none; z-index: 300;
+  opacity: 0;
+}
+@keyframes flash-green { 0%{opacity:0.55} 100%{opacity:0} }
+@keyframes flash-red   { 0%{opacity:0.45} 100%{opacity:0} }
+@keyframes flash-orange{ 0%{opacity:0.35} 100%{opacity:0} }
+
+/* ── DANGER VIGNETTE (creeps in as trace rises) ── */
+#danger-vignette {
+  position: fixed; inset: 0;
+  background: radial-gradient(ellipse at center, transparent 40%, rgba(255,0,30,0) 100%);
+  pointer-events: none; z-index: 198;
+  transition: opacity 1.5s ease;
+  opacity: 0;
+}
+
+/* ── ALERT BANNER ── */
+#alert-banner {
+  position: fixed;
+  top: 48px; left: 0; right: 380px;
+  height: 0; overflow: hidden;
+  background: rgba(255,0,30,0.12);
+  border-bottom: 0px solid var(--red);
+  display: flex; align-items: center; justify-content: center;
+  font-family: 'VT323', monospace;
+  font-size: 1.1rem; letter-spacing: 0.3em;
+  color: var(--red);
+  text-shadow: 0 0 12px var(--red);
+  z-index: 45;
+  transition: height 0.3s, border-width 0.3s;
+  animation: alert-flicker 1.4s infinite;
+}
+@keyframes alert-flicker {
+  0%,90%,100%{opacity:1} 92%{opacity:0.5} 95%{opacity:1} 97%{opacity:0.7}
+}
+#alert-banner.visible { height: 28px; border-bottom-width: 1px; }
+
+/* ── GLITCH OVERLAY ── */
+#glitch-overlay {
+  position: fixed; inset: 0;
+  pointer-events: none; z-index: 301;
+  opacity: 0;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent, transparent 2px,
+    rgba(255,0,30,0.06) 2px, rgba(255,0,30,0.06) 4px
+  );
+}
+@keyframes glitch-anim {
+  0%   { opacity:0; transform: translate(0,0); }
+  10%  { opacity:0.7; transform: translate(-3px, 1px); clip-path: inset(20% 0 60% 0); }
+  20%  { opacity:0; transform: translate(3px,-1px); }
+  30%  { opacity:0.5; transform: translate(0,0); clip-path: inset(60% 0 10% 0); }
+  40%  { opacity:0; }
+  100% { opacity:0; }
+}
+
+/* ── NODE BREACH FLASH (DOM overlay for big nodes) ── */
+.breach-flash {
+  position: fixed;
+  pointer-events: none;
+  border-radius: 50%;
+  z-index: 295;
+  animation: breach-pop 0.7s ease-out forwards;
+}
+@keyframes breach-pop {
+  0%   { transform: scale(0.5); opacity: 0.9; }
+  60%  { opacity: 0.6; }
+  100% { transform: scale(4); opacity: 0; }
+}
+
+/* ── SCAN SWEEP LINE ── */
+#scan-sweep {
+  position: fixed;
+  left: 0; right: 380px;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, var(--cyan), transparent);
+  box-shadow: 0 0 12px var(--cyan), 0 0 24px rgba(0,255,220,0.4);
+  pointer-events: none;
+  z-index: 42;
+  opacity: 0;
+  top: 48px;
+}
+@keyframes sweep-down {
+  0%   { top: 48px; opacity: 0.7; }
+  90%  { opacity: 0.4; }
+  100% { top: calc(100vh - 80px); opacity: 0; }
+}
+
 /* ── BREACH LOG ── */
 #breach-log {
   position: fixed;
@@ -425,6 +517,12 @@ body::after {
 </style>
 </head>
 <body>
+
+<div id="screen-flash"></div>
+<div id="danger-vignette"></div>
+<div id="alert-banner"></div>
+<div id="glitch-overlay"></div>
+<div id="scan-sweep"></div>
 
 <div id="header">
   <div class="title">// MATRIX INTRUSION //</div>
@@ -1050,7 +1148,7 @@ function tickScanning() {
 }
 
 function draw() {
-  tickScanning();
+  tickScanningFX();
   drawBackground();
   updateScanRings();
   drawEdges();
@@ -1192,19 +1290,325 @@ function showNodeInfo(key) {
     ${node.ice.length > 0 ? `<div class="p-block"><h3>Glaces \u2014 ICE D\u00e9tect\u00e9es</h3>${iceHTML}</div>` : ''}
     <div class="p-block"><h3>Donn\u00e9es Extractibles</h3>${dataHTML}</div>
     <div class="p-block"><h3>Notes Decker</h3><div class="decker-note"><span class="prompt">&gt;</span>${node.note}</div></div>
-    <button id="hack-btn" class="${btnClass}" ${btnDisabled?'disabled':''} onclick="breachNode('${key}')">${btnLabel}</button>
+    <button id="hack-btn" class="${btnClass}" ${btnDisabled?'disabled':''} onclick="breachNodeFX('${key}')">${btnLabel}</button>
   `;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// TRACE
+// AUDIO ENGINE
+// ═══════════════════════════════════════════════════════════════════════════
+let audioCtx = null;
+function getAudioCtx() {
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  return audioCtx;
+}
+
+function playTone(freq, type, duration, gain, fadeOut = true, delay = 0) {
+  try {
+    const ctx = getAudioCtx();
+    const osc = ctx.createOscillator();
+    const g   = ctx.createGain();
+    const t   = ctx.currentTime + delay;
+    osc.connect(g); g.connect(ctx.destination);
+    osc.type = type; osc.frequency.value = freq;
+    g.gain.setValueAtTime(0, t);
+    g.gain.linearRampToValueAtTime(gain, t + 0.01);
+    if (fadeOut) g.gain.exponentialRampToValueAtTime(0.0001, t + duration);
+    else         g.gain.setValueAtTime(gain, t + duration);
+    osc.start(t); osc.stop(t + duration + 0.02);
+  } catch(e) {}
+}
+
+function playNoise(duration, gainVal, freqLow = 80, freqHigh = 400, delay = 0) {
+  try {
+    const ctx  = getAudioCtx();
+    const buf  = ctx.createBuffer(1, ctx.sampleRate * duration, ctx.sampleRate);
+    const data = buf.getChannelData(0);
+    for (let i = 0; i < data.length; i++) data[i] = (Math.random() * 2 - 1);
+    const src  = ctx.createBufferSource();
+    const filt = ctx.createBiquadFilter();
+    const g    = ctx.createGain();
+    src.buffer = buf;
+    filt.type = 'bandpass';
+    filt.frequency.value = (freqLow + freqHigh) / 2;
+    filt.Q.value = 0.8;
+    src.connect(filt); filt.connect(g); g.connect(ctx.destination);
+    const t = ctx.currentTime + delay;
+    g.gain.setValueAtTime(gainVal, t);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + duration);
+    src.start(t); src.stop(t + duration + 0.02);
+  } catch(e) {}
+}
+
+// ── Specific sound events ──────────────────────────────────────────────────
+
+function sndConnect() {
+  // Rising sweep : connection established
+  playTone(120, 'sawtooth', 0.15, 0.08);
+  playTone(240, 'sawtooth', 0.12, 0.06, true, 0.1);
+  playTone(480, 'sine',     0.10, 0.05, true, 0.2);
+  playTone(960, 'sine',     0.08, 0.04, true, 0.3);
+  playNoise(0.08, 0.04, 200, 800, 0.0);
+}
+
+function sndScanStart() {
+  // Rhythmic ping
+  playTone(880, 'sine', 0.06, 0.07);
+  playTone(660, 'sine', 0.06, 0.05, true, 0.07);
+  playNoise(0.05, 0.02, 400, 2000, 0.0);
+}
+
+function sndScanComplete() {
+  // Double chirp : node revealed
+  playTone(1100, 'square', 0.04, 0.06);
+  playTone(1320, 'square', 0.04, 0.07, true, 0.05);
+  playNoise(0.06, 0.025, 600, 3000, 0.0);
+}
+
+function sndBreach(fw) {
+  // Satisfying "crack" + descending growl
+  const intensity = Math.min(fw / 10, 1);
+  playNoise(0.12, 0.12 + intensity * 0.1, 100, 600);
+  playTone(200, 'sawtooth', 0.2, 0.1 + intensity * 0.05);
+  playTone(100, 'sawtooth', 0.3, 0.08, true, 0.08);
+  playTone(1760, 'sine',    0.05, 0.06, true, 0.0);
+  playTone(880,  'sine',    0.05, 0.05, true, 0.04);
+  playTone(440,  'sine',    0.05, 0.04, true, 0.08);
+}
+
+function sndBlackIce() {
+  // Harsh alarm burst
+  [0, 0.07, 0.14, 0.21].forEach(d => {
+    playTone(220, 'square', 0.06, 0.1, true, d);
+    playTone(110, 'sawtooth', 0.06, 0.08, true, d + 0.03);
+  });
+  playNoise(0.3, 0.15, 60, 300);
+}
+
+function sndObjective() {
+  // Victorious chime
+  [523.25, 659.25, 783.99, 1046.5].forEach((f, i) => {
+    playTone(f, 'sine', 0.25, 0.08, true, i * 0.08);
+  });
+}
+
+function sndTracePulse(pct) {
+  // Heartbeat that speeds up with trace level
+  const freq = 40 + pct * 1.2;
+  const gain = 0.04 + pct * 0.0008;
+  playNoise(0.06, gain, freq * 0.8, freq * 2);
+  playTone(freq, 'sine', 0.08, gain * 0.6);
+}
+
+function sndCriticalAlert() {
+  // Triple stab + noise
+  [0, 0.12, 0.24].forEach(d => {
+    playTone(440, 'square', 0.08, 0.12, true, d);
+    playTone(880, 'square', 0.06, 0.08, true, d + 0.04);
+  });
+  playNoise(0.4, 0.18, 80, 400);
+}
+
+function sndGlitch() {
+  playNoise(0.07, 0.08, 200, 8000);
+  playTone(55, 'sawtooth', 0.07, 0.05);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// VISUAL FX ENGINE
+// ═══════════════════════════════════════════════════════════════════════════
+
+function flashScreen(color, duration = 300) {
+  const el = document.getElementById('screen-flash');
+  el.style.background = color;
+  el.style.animation = 'none';
+  el.offsetHeight; // reflow
+  const kf = color.includes('255,0') ? 'flash-red' :
+             color.includes('0,255') ? 'flash-green' : 'flash-orange';
+  el.style.animation = `${kf} ${duration}ms ease-out forwards`;
+}
+
+function triggerGlitch(duration = 400) {
+  const el = document.getElementById('glitch-overlay');
+  el.style.animation = 'none';
+  el.offsetHeight;
+  el.style.animation = `glitch-anim ${duration}ms ease-out forwards`;
+}
+
+function spawnBreachCircle(key) {
+  if (!NODE_POS[key]) return;
+  const [rx, ry] = NODE_POS[key];
+  const x = nx(rx) + canvas.getBoundingClientRect().left;
+  const y = ny(ry) + canvas.getBoundingClientRect().top;
+  const r = getNodeRadius(key);
+  const cfg = TYPE_CFG[NODES[key].type];
+  const el = document.createElement('div');
+  el.className = 'breach-flash';
+  el.style.cssText = `left:${x-r}px;top:${y-r}px;width:${r*2}px;height:${r*2}px;background:${cfg.color}33;border:2px solid ${cfg.color};`;
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 800);
+}
+
+function triggerScanSweep() {
+  const el = document.getElementById('scan-sweep');
+  el.style.animation = 'none';
+  el.offsetHeight;
+  el.style.animation = 'sweep-down 2s linear forwards';
+}
+
+let dangerLevel = 0; // 0-3
+function updateDangerAmbience(pct) {
+  const prev = dangerLevel;
+  dangerLevel = pct > 75 ? 3 : pct > 50 ? 2 : pct > 25 ? 1 : 0;
+
+  // Danger vignette
+  const v = document.getElementById('danger-vignette');
+  if (pct > 75) {
+    v.style.background = 'radial-gradient(ellipse at center, transparent 35%, rgba(255,0,30,0.28) 100%)';
+    v.style.opacity = '1';
+  } else if (pct > 50) {
+    v.style.background = 'radial-gradient(ellipse at center, transparent 40%, rgba(255,80,0,0.18) 100%)';
+    v.style.opacity = '1';
+  } else if (pct > 25) {
+    v.style.background = 'radial-gradient(ellipse at center, transparent 45%, rgba(255,150,0,0.10) 100%)';
+    v.style.opacity = '1';
+  } else {
+    v.style.opacity = '0';
+  }
+
+  // Alert banner
+  const banner = document.getElementById('alert-banner');
+  if (pct > 75 && prev <= 2) {
+    banner.textContent = '⚠  TRACE CRITIQUE — CONTRE-MESURES ACTIVES — DÉCONNEXION IMMINENTE  ⚠';
+    banner.classList.add('visible');
+    sndCriticalAlert();
+    triggerGlitch(600);
+    flashScreen('rgba(255,0,30,0.4)', 500);
+  } else if (pct > 50 && prev <= 1) {
+    banner.textContent = '▲  TRACE ÉLEVÉE — AGENT MCT EN ALERTE  ▲';
+    banner.classList.add('visible');
+    flashScreen('rgba(255,100,0,0.3)', 400);
+  } else if (pct > 25 && prev === 0) {
+    banner.textContent = '◉  TRACE DÉTECTÉE — PROBE ACTIF  ◉';
+    banner.classList.add('visible');
+  } else if (pct <= 25) {
+    banner.classList.remove('visible');
+  }
+
+  // Header border color escalation
+  const header = document.getElementById('header');
+  if (pct > 75)      header.style.borderBottomColor = '#ff1133';
+  else if (pct > 50) header.style.borderBottomColor = '#ff6600';
+  else if (pct > 25) header.style.borderBottomColor = '#ff9900';
+  else               header.style.borderBottomColor = '';
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// AMBIENT DANGER HEARTBEAT
+// ═══════════════════════════════════════════════════════════════════════════
+let lastHeartbeat = 0;
+function ambientTick() {
+  const now = Date.now();
+  if (tracePct > 15) {
+    // Heartbeat interval shrinks as trace grows: 2000ms → 500ms
+    const interval = Math.max(500, 2000 - tracePct * 18);
+    if (now - lastHeartbeat > interval) {
+      sndTracePulse(tracePct);
+      lastHeartbeat = now;
+    }
+  }
+  // Random glitch at very high trace
+  if (tracePct > 75 && Math.random() < 0.003) {
+    triggerGlitch(200);
+    sndGlitch();
+  }
+  requestAnimationFrame(ambientTick);
+}
+requestAnimationFrame(ambientTick);
+
+// ── Patch tickScanning to emit sounds when nodes are revealed ─────────────
+// (called from draw loop — wraps original logic inline)
+function tickScanningFX() {
+  const prevStates = {};
+  Object.keys(nodeState).forEach(k => prevStates[k] = nodeState[k]);
+
+  // ── original tickScanning logic ──
+  Object.keys(nodeState).forEach(k => {
+    if (nodeState[k] === 'scanning') {
+      scanProgress[k] = Math.min(1, scanProgress[k] + 0.008);
+      revealProgress[k] = Math.min(1, revealProgress[k] + 0.04);
+      if (scanProgress[k] >= 1) {
+        nodeState[k] = 'revealed';
+        revealProgress[k] = 1;
+        const [rx, ry] = NODE_POS[k];
+        const x = nx(rx), y = ny(ry);
+        const r = getNodeRadius(k);
+        const col = TYPE_CFG[NODES[k].type].color;
+        for (let i = 0; i < 3; i++) scanRings.push({ x, y, t: i*0.15, baseR: r, color: col });
+        addLog(`NODE ${NODES[k].id} IDENTIFIÉ — ${NODES[k].name}`, 'ok');
+        if (NODES[k].ice?.some(i => i.type === 'black'))
+          addLog(`⚠ GLACE NOIRE DÉTECTÉE SUR ${NODES[k].id} — BLACK ICE ACTIVE`, 'danger');
+      }
+    }
+    if ((nodeState[k] === 'revealed' || nodeState[k] === 'breached') && revealProgress[k] < 1)
+      revealProgress[k] = Math.min(1, revealProgress[k] + 0.06);
+  });
+  // ── end original ──
+
+  Object.keys(nodeState).forEach(k => {
+    if (prevStates[k] === 'scanning' && nodeState[k] === 'revealed') {
+      sndScanComplete();
+      flashScreen('rgba(0,255,180,0.18)', 250);
+      spawnBreachCircle(k);
+    }
+    if (prevStates[k] === 'hidden' && nodeState[k] === 'scanning') {
+      sndScanStart();
+    }
+  });
+}
+
+// ── FX wrapper for breachNode ──────────────────────────────────────────────
+function breachNodeFX(key) {
+  const node = NODES[key];
+  const hasBlack = node.ice?.some(i => i.type === 'black');
+  const hasObjective = node.data?.some(d => d.value === 'OBJECTIF');
+  const isCritical = node.type === 'critical' || node.type === 'hostile';
+
+  breachNode(key);
+
+  sndBreach(node.fw);
+  flashScreen('rgba(0,255,120,0.3)', 350);
+  spawnBreachCircle(key);
+  triggerScanSweep();
+
+  if (hasBlack) {
+    setTimeout(() => { sndBlackIce(); triggerGlitch(500); flashScreen('rgba(255,0,30,0.35)', 400); }, 180);
+  }
+  if (hasObjective) {
+    setTimeout(() => { sndObjective(); flashScreen('rgba(255,220,0,0.25)', 500); }, 300);
+  }
+  if (isCritical) {
+    setTimeout(() => { sndCriticalAlert(); triggerGlitch(700); }, 100);
+  }
+  setTimeout(() => updateDangerAmbience(tracePct), 100);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// TRACE — patch to update ambience on each tick
 // ═══════════════════════════════════════════════════════════════════════════
 let tracePct = 0;
-setInterval(() => {
+const _traceEl = document.getElementById('trace-inner');
+const _tracePctEl = document.getElementById('trace-pct');
+// Override passive trace updater
+window._traceTimer = setInterval(() => {
   tracePct = Math.min(99, tracePct + 0.04);
-  document.getElementById('trace-inner').style.width = tracePct + '%';
-  document.getElementById('trace-pct').textContent = tracePct.toFixed(0) + '%';
+  _traceEl.style.width = tracePct + '%';
+  _tracePctEl.textContent = tracePct.toFixed(0) + '%';
+  if (tracePct > 75)      _traceEl.style.background = 'linear-gradient(90deg,#ff4400,#ff0000)';
+  else if (tracePct > 50) _traceEl.style.background = 'linear-gradient(90deg,#ffaa00,#ff4400)';
+  updateDangerAmbience(tracePct);
 }, 300);
+
 
 // ═══════════════════════════════════════════════════════════════════════════
 // INIT
@@ -1212,9 +1616,22 @@ setInterval(() => {
 window.addEventListener('resize', resize);
 resize();
 draw();
-setTimeout(() => addLog('CONNEXION \u00c9TABLIE \u2014 HOST MCT-XENOBIO-DELTA NIVEAU 8', 'ok'), 300);
-setTimeout(() => addLog('SCAN INITIAL... N\u0152UD D\'ENTR\u00c9E D\u00c9TECT\u00c9', 'msg'), 800);
-setTimeout(() => addLog('ATTENTION: PROBE ICE ACTIF \u2014 TRACE EN COURS', 'warn'), 1400);
+
+setTimeout(() => {
+  addLog('CONNEXION \u00c9TABLIE \u2014 HOST MCT-XENOBIO-DELTA NIVEAU 8', 'ok');
+  sndConnect();
+  flashScreen('rgba(0,255,180,0.25)', 400);
+  triggerScanSweep();
+}, 300);
+setTimeout(() => {
+  addLog('SCAN INITIAL... N\u0152UD D\'ENTR\u00c9E D\u00c9TECT\u00c9', 'msg');
+  sndScanComplete();
+}, 800);
+setTimeout(() => {
+  addLog('ATTENTION: PROBE ICE ACTIF \u2014 TRACE EN COURS', 'warn');
+  sndBlackIce();
+  triggerGlitch(300);
+}, 1400);
 
 </script>
 </body>
